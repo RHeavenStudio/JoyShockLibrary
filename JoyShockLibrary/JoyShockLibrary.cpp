@@ -749,6 +749,34 @@ int JslGetControllerColour(int deviceId)
 	}
 	return 0xFFFFFF;
 }
+int JslGetControllerButtonColour(int deviceId)
+{
+	// this just reports buttons colour. Switch controllers also give body colour, and in Pro's case, left and right grips
+	JoyShock* jc = GetJoyShockFromHandle(deviceId);
+	if (jc != nullptr) {
+		return jc->button_colour;
+	}
+	return 0xFFFFFF;
+}
+int JslGetControllerLeftGripColour(int deviceId)
+{
+	// this just reports left grip colour. Switch controllers also give buttons and body colour
+	JoyShock* jc = GetJoyShockFromHandle(deviceId);
+	if (jc != nullptr) {
+		return jc->left_grip_colour;
+	}
+	return 0xFFFFFF;
+}
+int JslGetControllerRightGripColour(int deviceId)
+{
+	// this just reports right grip colour. Switch controllers also give buttons and body colour
+	JoyShock* jc = GetJoyShockFromHandle(deviceId);
+	if (jc != nullptr) {
+		return jc->right_grip_colour;
+	}
+	return 0xFFFFFF;
+}
+
 // set controller light colour (not all controllers have a light whose colour can be set, but that just means nothing will be done when this is called -- no harm)
 void JslSetLightColour(int deviceId, int colour)
 {
@@ -802,6 +830,8 @@ void JslSetRumble(int deviceId, int smallRumble, int bigRumble)
                 jc->led_b,
                 jc->player_number);
     }
+	else if (jc != nullptr && jc->controller_type == ControllerType::n_switch) {
+	}
 }
 // set controller player number indicator (not all controllers have a number indicator which can be set, but that just means nothing will be done when this is called -- no harm)
 void JslSetPlayerNumber(int deviceId, int number)

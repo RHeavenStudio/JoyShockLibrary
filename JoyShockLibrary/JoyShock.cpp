@@ -457,6 +457,38 @@ public:
 		send_command(0x10, (uint8_t*)buf, 0x9);
 	}
 
+	void rumble_freq(uint16_t hf, uint8_t hfa, uint8_t lf, uint16_t lfa) {
+		unsigned char buf[0x400];
+		memset(buf, 0, 0x40);
+
+		//int hf		= HF;
+		//int hf_amp	= HFA;
+		//int lf		= LF;
+		//int lf_amp	= LFA;
+		// maybe:
+		//int hf_band = hf + hf_amp;
+
+		int off = 0;// offset
+		if (this->left_right == 2) {
+			off = 4;
+		}
+
+
+		// Byte swapping
+		buf[0 + off] = hf & 0xFF;
+		buf[1 + off] = hfa + ((hf >> 8) & 0xFF); //Add amp + 1st byte of frequency to amplitude byte
+
+												 // Byte swapping
+		buf[2 + off] = lf + ((lfa >> 8) & 0xFF); //Add freq + 1st byte of LF amplitude to the frequency byte
+		buf[3 + off] = lfa & 0xFF;
+
+
+		// set non-blocking:
+		hid_set_nonblocking(this->handle, 1);
+
+		send_command(0x10, (uint8_t*)buf, 0x9);
+	}
+
 	bool get_switch_controller_info() {
 		bool result = false;
 
