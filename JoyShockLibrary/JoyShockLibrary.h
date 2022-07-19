@@ -212,5 +212,6 @@ extern "C" JOY_SHOCK_API int JslGetControllerRightGripColour(int deviceId);
 extern "C" JOY_SHOCK_API void JslSetLightColour(int deviceId, int colour);
 // set controller rumble
 extern "C" JOY_SHOCK_API void JslSetRumble(int deviceId, int smallRumble, int bigRumble);
+extern "C" JOY_SHOCK_API void JslSetRumbleFrequency(int deviceId, float smallRumble, float bigRumble, float smallFrequency, float bigFrequency);
 // set controller player number indicator (not all controllers have a number indicator which can be set, but that just means nothing will be done when this is called -- no harm)
 extern "C" JOY_SHOCK_API void JslSetPlayerNumber(int deviceId, int number);

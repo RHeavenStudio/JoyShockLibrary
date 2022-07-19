@@ -805,6 +805,7 @@ void JslSetLightColour(int deviceId, int colour)
                 jc->player_number);
 	}
 }
+
 // set controller rumble
 void JslSetRumble(int deviceId, int smallRumble, int bigRumble)
 {
@@ -831,8 +832,44 @@ void JslSetRumble(int deviceId, int smallRumble, int bigRumble)
                 jc->player_number);
     }
 	else if (jc != nullptr && jc->controller_type == ControllerType::n_switch) {
+		// smallRumble becomes high pass and bigRumble becomes low pass
+		jc->small_rumble = smallRumble;
+		jc->big_rumble = bigRumble;
+		jc->switch_rumble(160.0f, 160.0f, (float)(bigRumble) / 255.0, (float)(smallRumble) / 255.0);
 	}
 }
+void JslSetRumbleFrequency(int deviceId, int smallRumble, int bigRumble, float smallFrequency, float bigFrequency)
+{
+	JoyShock* jc = GetJoyShockFromHandle(deviceId);
+	// dualshocks don't support frequency, ignore the frequencies passed
+	if (jc != nullptr && jc->controller_type == ControllerType::s_ds4) {
+		jc->small_rumble = (int)(smallRumble * 255.0f);
+		jc->big_rumble = (int)(bigRumble * 255.0f);
+		jc->set_ds4_rumble_light(
+			jc->small_rumble,
+			jc->big_rumble,
+			jc->led_r,
+			jc->led_g,
+			jc->led_b);
+	}
+	else if (jc != nullptr && jc->controller_type == ControllerType::s_ds4) {
+		jc->small_rumble = (int)(smallRumble * 255.0f);
+		jc->big_rumble = (int)(bigRumble * 255.0f);
+		jc->set_ds5_rumble_light(
+			jc->small_rumble,
+			jc->big_rumble,
+			jc->led_r,
+			jc->led_g,
+			jc->led_b,
+			jc->player_number);
+	}
+	else if (jc != nullptr && jc->controller_type == ControllerType::n_switch) {
+		jc->small_rumble = (int)(smallRumble * 255.0f);
+		jc->big_rumble = (int)(bigRumble * 255.0f);
+		jc->switch_rumble(bigFrequency, smallFrequency, bigRumble, smallRumble);
+	}
+}
+
 // set controller player number indicator (not all controllers have a number indicator which can be set, but that just means nothing will be done when this is called -- no harm)
 void JslSetPlayerNumber(int deviceId, int number)
 {

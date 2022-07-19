@@ -424,39 +424,6 @@ public:
 		return true;
 	}
 
-	void rumble(int frequency, int intensity) {
-
-		unsigned char buf[0x400];
-		memset(buf, 0, 0x40);
-
-		// intensity: (0, 8)
-		// frequency: (0, 255)
-
-		//	 X	AA	BB	 Y	CC	DD
-		//[0 1 x40 x40 0 1 x40 x40] is neutral.
-
-
-		//for (int j = 0; j <= 8; j++) {
-		//	buf[1 + intensity] = 0x1;//(i + j) & 0xFF;
-		//}
-
-		buf[1 + 0 + intensity] = 0x1;
-		buf[1 + 4 + intensity] = 0x1;
-
-		// Set frequency to increase
-		if (this->left_right == 1) {
-			buf[1 + 0] = frequency;// (0, 255)
-		}
-		else {
-			buf[1 + 4] = frequency;// (0, 255)
-		}
-
-		// set non-blocking:
-		hid_set_nonblocking(this->handle, 1);
-
-		send_command(0x10, (uint8_t*)buf, 0x9);
-	}
-
 	void rumble_freq(uint16_t hf, uint8_t hfa, uint8_t lf, uint16_t lfa) {
 		unsigned char buf[0x400];
 		memset(buf, 0, 0x40);
@@ -487,6 +454,37 @@ public:
 		hid_set_nonblocking(this->handle, 1);
 
 		send_command(0x10, (uint8_t*)buf, 0x9);
+	}
+
+	// idk if this will actually work
+	void switch_rumble(float real_LF, float real_HF, float real_LF_amp, float real_HF_amp) {
+
+		real_LF = clamp(real_LF, 40.875885f, 626.286133f);
+		real_HF = clamp(real_HF, 81.75177, 1252.572266f);
+
+		real_LF_amp = clamp(real_LF_amp, 0.0f, 1.0f);
+		real_HF_amp = clamp(real_HF_amp, 0.0f, 1.0f);
+
+		uint16_t hf = ((uint8_t)round(log2((double)real_HF * 0.01) * 32.0) - 0x60) * 4;
+		uint8_t lf = (uint8_t)round(log2((double)real_LF * 0.01) * 32.0) - 0x40;
+
+		uint8_t lf_hex_amp = 0;
+		uint8_t hf_hex_amp = 0;
+
+		if (real_LF_amp > 0.23f)
+			lf_hex_amp = (uint8_t)round(log2f(real_LF_amp * 8.7f) * 32.f);
+		else if (real_LF_amp > 0.12f)
+			lf_hex_amp = (uint8_t)round(log2f(real_LF_amp * 17.f) * 16.f);
+
+		if (real_HF_amp > 0.23f)
+			hf_hex_amp = (uint8_t)round(log2f(real_HF_amp * 8.7f) * 32.f);
+		else if (real_HF_amp > 0.12f)
+			hf_hex_amp = (uint8_t)round(log2f(real_HF_amp * 17.f) * 16.f);
+
+		uint8_t hfa = (uint8_t)(hf_hex_amp << 1);
+		uint16_t lfa = (uint8_t)(lf_hex_amp >> 1) + 0x40;
+
+		rumble_freq(hf, hfa, lf, lfa);
 	}
 
 	bool get_switch_controller_info() {
