@@ -838,7 +838,7 @@ void JslSetRumble(int deviceId, int smallRumble, int bigRumble)
 		jc->switch_rumble(160.0f, 160.0f, (float)(bigRumble) / 255.0, (float)(smallRumble) / 255.0);
 	}
 }
-void JslSetRumbleFrequency(int deviceId, int smallRumble, int bigRumble, float smallFrequency, float bigFrequency)
+void JslSetRumbleFrequency(int deviceId, float smallRumble, float bigRumble, float smallFrequency, float bigFrequency)
 {
 	JoyShock* jc = GetJoyShockFromHandle(deviceId);
 	// dualshocks don't support frequency, ignore the frequencies passed
