@@ -44,9 +44,9 @@ if (WIN32)
 
     CPMAddPackage (
         NAME hidapi
-        GITHUB_REPOSITORY signal11/hidapi
-        VERSION 0
-        GIT_TAG a6a622ffb680c55da0de787ff93b80280498330f
+        GITHUB_REPOSITORY libusb/hidapi
+        VERSION 0.13.1
+        GIT_TAG 4ebce6b5059b086d05ca7e091ce04a5fd08ac3ac
         DOWNLOAD_ONLY YES
     )
 
