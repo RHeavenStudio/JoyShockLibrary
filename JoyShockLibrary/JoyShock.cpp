@@ -50,6 +50,8 @@ public:
 
 	hid_device * handle;
 	int intHandle = 0;
+	std::string path;
+
 	wchar_t *serial;
 
 	std::string name;
@@ -71,6 +73,15 @@ public:
 	TOUCH_STATE last_touch_state = {};
 
 	GamepadMotion motion;
+
+	float cumulative_gyro_x = 0.f;
+	float cumulative_gyro_y = 0.f;
+	float cumulative_gyro_z = 0.f;
+	int num_cumulative_gyro_samples = 0;
+
+	int gyroSpace = 0;
+
+	std::mutex modifying_lock;
 
 	int8_t dstick;
 	uint8_t battery;
@@ -96,6 +107,8 @@ public:
 	float cal_x[1] = { 0.0f };
 	float cal_y[1] = { 0.0f };
 
+	bool initialised = false;
+
 	bool has_user_cal_stick_l = false;
 	bool has_user_cal_stick_r = false;
 	bool has_user_cal_sensor = false;
@@ -115,9 +128,12 @@ public:
 	unsigned int right_grip_colour = 0xFFFFFF;
 
 	int player_number = 0;
+	int reuse_counter = 0;
 
 	bool cancel_thread = false;
-	std::thread* thread;
+	bool delete_on_finish = false;
+	bool remove_on_finish = true;
+	std::thread* thread = nullptr;
 
 	// for calibration:
 	bool use_continuous_calibration = false;
@@ -229,7 +245,8 @@ public:
 	}
 
 public:
-	JoyShock(struct hid_device_info *dev, int uniqueHandle) {
+	void init(struct hid_device_info *dev, hid_device* inHandle, int uniqueHandle, const std::string &inPath) {
+		this->path = inPath;
 
 		if (dev->product_id == JOYCON_CHARGING_GRIP) {
 
@@ -286,7 +303,7 @@ public:
 		this->intHandle = uniqueHandle;
 
 		//printf("Found device %c: %ls %s\n", L_OR_R(this->left_right), this->serial, dev->path);
-		this->handle = hid_open_path(dev->path);
+		this->handle = inHandle;
 
 		if (this->controller_type == ControllerType::s_ds4) {
 			unsigned char buf[64];
@@ -300,7 +317,7 @@ public:
 				this->is_usb = false;
 			}
 		}
-		else if(this->controller_type == ControllerType::s_ds) {
+		else if (this->controller_type == ControllerType::s_ds) {
             unsigned char buf[64];
             memset(buf, 0, 64);
 
@@ -316,18 +333,75 @@ public:
             }
 
         }
+	}
+
+	JoyShock(struct hid_device_info* dev, hid_device* inHandle, int uniqueHandle, const std::string& inPath) {
+		init(dev, inHandle, uniqueHandle, inPath);
 
 		// initialise continuous calibration windows
 		reset_continuous_calibration();
+	}
 
-		if (this->handle == nullptr) {
-			//printf("Could not open serial %ls: %s\n", this->serial, strerror(errno));
-			throw;
+	~JoyShock() {
+		if (handle != nullptr) {
+			hid_close(handle);
+		}
+	}
+
+	void push_cumulative_gyro(float gyroX, float gyroY, float gyroZ) {
+		modifying_lock.lock();
+		if (num_cumulative_gyro_samples == 0) {
+			cumulative_gyro_x = 0.f;
+			cumulative_gyro_y = 0.f;
+			cumulative_gyro_z = 0.f;
+		}
+		cumulative_gyro_x += gyroX;
+		cumulative_gyro_y += gyroY;
+		cumulative_gyro_z += gyroZ;
+		num_cumulative_gyro_samples++;
+		modifying_lock.unlock();
+	}
+
+	void get_and_flush_cumulative_gyro(float& gyroX, float& gyroY, float& gyroZ) {
+		modifying_lock.lock();
+		if (num_cumulative_gyro_samples == 0) {
+			gyroX = cumulative_gyro_x;
+			gyroX = cumulative_gyro_y;
+			gyroX = cumulative_gyro_z;
+		}
+		else {
+			gyroX = cumulative_gyro_x / num_cumulative_gyro_samples;
+			gyroY = cumulative_gyro_y / num_cumulative_gyro_samples;
+			gyroZ = cumulative_gyro_z / num_cumulative_gyro_samples;
+			num_cumulative_gyro_samples = 0;
+			// so that we don't return zeroes before we receive a new sample, store this for next time:
+			cumulative_gyro_x = gyroX;
+			cumulative_gyro_y = gyroY;
+			cumulative_gyro_z = gyroZ;
+		}
+		float gravX, gravY, gravZ;
+		motion.GetGravity(gravX, gravY, gravZ);
+		modifying_lock.unlock();
+		switch (gyroSpace)
+		{
+		default:
+		case 0:
+			break;
+		case 1:
+			GamepadMotion::CalculateWorldSpaceGyro(gyroX, gyroY, gyroX, gyroY, gyroZ, gravX, gravY, gravZ);
+			gyroZ = 0.f;
+			break;
+		case 2:
+			GamepadMotion::CalculatePlayerSpaceGyro(gyroX, gyroY, gyroX, gyroY, gyroZ, gravX, gravY, gravZ);
+			gyroZ = 0.f;
+			break;
 		}
 	}
 
 	void reset_continuous_calibration() {
+		modifying_lock.lock();
 		motion.ResetContinuousCalibration();
+		modifying_lock.unlock();
 	}
 
 	void push_sensor_samples(float gyroX, float gyroY, float gyroZ, float accelX, float accelY, float accelZ, float deltaTime) {
@@ -342,10 +416,45 @@ public:
 	MOTION_STATE get_motion_state()
 	{
 		MOTION_STATE motionState = MOTION_STATE();
+		modifying_lock.lock();
 		motion.GetProcessedAcceleration(motionState.accelX, motionState.accelY, motionState.accelZ);
 		motion.GetOrientation(motionState.quatW, motionState.quatX, motionState.quatY, motionState.quatZ);
 		motion.GetGravity(motionState.gravX, motionState.gravY, motionState.gravZ);
+		modifying_lock.unlock();
 		return motionState;
+	}
+
+	IMU_STATE get_transformed_imu_state(IMU_STATE& imu_state)
+	{
+		float gyroX, gyroY, gyroZ, gravX, gravY, gravZ;
+		modifying_lock.lock();
+		motion.GetGravity(gravX, gravY, gravZ);
+		gyroX = imu_state.gyroX;
+		gyroY = imu_state.gyroY;
+		gyroZ = imu_state.gyroZ;
+		modifying_lock.unlock();
+		switch (gyroSpace)
+		{
+		default:
+		case 0:
+			break;
+		case 1:
+			GamepadMotion::CalculateWorldSpaceGyro(gyroX, gyroY, gyroX, gyroY, gyroZ, gravX, gravY, gravZ);
+			gyroZ = 0.f;
+			break;
+		case 2:
+			GamepadMotion::CalculatePlayerSpaceGyro(gyroX, gyroY, gyroX, gyroY, gyroZ, gravX, gravY, gravZ);
+			gyroZ = 0.f;
+			break;
+		}
+		IMU_STATE transformedState = IMU_STATE();
+		transformedState.accelX = imu_state.accelX;
+		transformedState.accelY = imu_state.accelY;
+		transformedState.accelZ = imu_state.accelZ;
+		transformedState.gyroX = gyroX;
+		transformedState.gyroY = gyroY;
+		transformedState.gyroZ = gyroZ;
+		return transformedState;
 	}
 
 	bool hid_exchange(hid_device *handle, unsigned char *buf, int len) {
@@ -951,6 +1060,8 @@ public:
 		//sensor_cal[1][2] = 0;
 
 		enable_gyro_ds4_bt(buf, 78);
+
+		initialised = true;
 	}
 
 	// placeholder to get things working quickly. overdue for a refactor
@@ -982,6 +1093,8 @@ public:
 			stick_cal_y_l[2] =
 			stick_cal_x_r[2] =
 			stick_cal_y_r[2] = 255;
+
+		initialised = true;
 	}
 
 	// this is mostly copied from init_usb() below, but modified to speak DS4
@@ -1053,11 +1166,15 @@ public:
 		//sensor_cal[1][0] = 0;
 		//sensor_cal[1][1] = 0;
 		//sensor_cal[1][2] = 0;
+
+		initialised = true;
 	}
 
 	void deinit_ds4_bt() {
 		// TODO. For now, init, which stops rumbling and disables light
 		init_ds4_bt();
+
+		initialised = false;
 	}
 
 	// TODO: implement this
@@ -1087,6 +1204,8 @@ public:
 		hid_set_nonblocking(this->handle, 1);
 
 		hid_write(handle, buf, 31);
+
+		initialised = false;
 	}
 
 	void deinit_usb() {
@@ -1099,6 +1218,8 @@ public:
 
 		hid_set_nonblocking(this->handle, 1);
 		hid_write(handle, buf, 0x2);
+
+		initialised = false;
 	}
 
 	void set_ds5_rumble_light(unsigned char smallRumble, unsigned char bigRumble,
@@ -1387,7 +1508,7 @@ public:
 	}
 
 	// SPI (@CTCaer):
-	bool get_spi_data(uint32_t offset, const uint16_t read_len, uint8_t *test_buf) {
+	bool get_spi_data(uint32_t offset, const uint8_t read_len, uint8_t *test_buf) {
 		int res;
 		uint8_t buf[0x100];
 		while (1) {
@@ -1432,7 +1553,7 @@ public:
 		return true;
 	}
 
-	int write_spi_data(uint32_t offset, const uint16_t write_len, uint8_t* test_buf) {
+	int write_spi_data(uint32_t offset, const uint8_t write_len, uint8_t* test_buf) {
 		int res;
 		uint8_t buf[0x100];
 		int error_writing = 0;

@@ -57,15 +57,22 @@ The latest version of JoyShockLibrary can always be found [here](https://github.
 * **float accelX, accelY, accelZ** - local acceleration after accounting for and removing the effect of gravity.
 * **float gravX, gravY, gravZ** - local gravity direction.
 
+#### Tip
+Quaternions are useful if you want to try and represent the device's 3D orientation in-game, with one major limitation: "yaw drift". Small errors will accumulate over time so that the quaternion orientation no longer matches the controller's real orientation. The gravity direction is used to counter this error in the roll and pitch axes, but there's nothing for countering the error in the yaw axis.
+
+Quaternions are **not** recommended for mouse-like aiming or cursor control. The gravity correction applied to the quaternion is not useful for these cases, and only introduces more error. For these, it's much better to use the calibrated gyro angular velocities. To make sure you account for every motion sensor update, either set a callback where you can respond to new motion input as it comes in, or poll the controller using **JslGetAndFlushAccumulatedGyro** to get a good average angular velocity since you last called this function.
+
 ### Functions
 
-All these functions *should* be thread-safe, and none of them should cause any harm if given the wrong handle. If they do, please report this to me as an isuse.
+All these functions *should* be thread-safe, and none of them should cause any harm if given the wrong or out-of-date deviceId. So even if a device gets disconnected between calling "JslStillConnected" and "JslGetSimpleState", the latter will just report all the sticks, triggers, and buttons untouched, and you'll detect the disconnection *next time* you call "JslStillConnected".
 
-**int JslConnectDevices()** - Register any connected devices. Returns the number of devices connected, which is helpful for getting the handles for those devices with the next function.
+**int JslConnectDevices()** - Register any connected devices. Returns the number of devices connected, which is helpful for getting the handles for those devices with the next function. As of version 3, this will not interrupt current connections. So you can call this function at any time to check for new connections. To only call it when necessary, only do this when your OS notifies you of a new connection (eg WM_DEVICECHANGE on Windows).
 
 **int JslGetConnectedDeviceHandles(int\* deviceHandleArray, int size)** - Fills the array *deviceHandleArray* of size *size* with the handles for all connected devices, up to the length of the array. Use the length returned by *JslConnectDevices* to make sure you've got all connected devices' handles.
 
 **void JslDisconnectAndDisposeAll()** - Disconnect devices, no longer polling them for input.
+
+**bool JslStillConnected(int deviceId)** - Returns **true** if the controller with the given id is still connected.
 
 **JOY\_SHOCK\_STATE JslGetSimpleState(int deviceId)** - Get the latest button + trigger + stick state for the controller with the given id.
 
@@ -73,7 +80,7 @@ All these functions *should* be thread-safe, and none of them should cause any h
 
 **MOTION\_STATE JslGetMotionState(int deviceId)** - Get the latest motion state for the controller with the given id.
 
-**TOUCH\_STATE JslGetTouchState(int deviceId, bool previous = false)** - Get the latest or previous touchpad state for the controller with the given id. Only DualShock 4s and DualSense support this.
+**TOUCH\_STATE JslGetTouchState(int deviceId, bool previous = false)** - Get the latest or previous touchpad state for the controller with the given id. Only DualShock 4 and DualSense support this.
 
 **bool JslGetTouchpadDimension(int deviceId, int &sizeX, int &sizeY)** - Get the dimension of the touchpad. This is useful to abstract the resolution of different touchpads.
 
@@ -84,6 +91,15 @@ All these functions *should* be thread-safe, and none of them should cause any h
 **float JslGetLeftTrigger/JslGetRightTrigger(int deviceId)** - Get the latest trigger state for the controller with the given id. If you want more than just a single trigger, it's more efficient to use JslGetSimpleState.
 
 **float JslGetGyroX/JslGetGyroY/JslGetGyroZ(int deviceId)** - Get the latest angular velocity for a given gyroscope axis. If you want more than just a single gyroscope axis velocity, it's more efficient to use JslGetIMUState.
+
+**void JslGetAndFlushAccumulatedGyro(int deviceId, float& gyroX, float& gyroY, float& gyroZ)** - Get gyro input that has accumulated since you last called this function on the device with the given id. This is an average angular velocity. Highly recommended if you're polling controllers instead of using the callbacks (_JslSetCallback_) to get new gyro data the moment it is received, to give a better account of how the controller has been turned since you last polled it. If no new motion data has come in since you last called it, it will repeat the same values, to avoid stuttery motion input when your game's framerate is higher than the controller's reporting rate (common with Switch controllers on high end PCs, for example).
+
+**void JslSetGyroSpace(int deviceId, int gyroSpace)** - Players have different ideas about what the front of the controller is, or what the controller's rest position should be. This can make it hard to decide whether to use the controller's yaw or roll axis for turning in-game or moving a cursor horizontally. To address this, there are 3 popular "spaces" for gyro controls:
+- 0 = Local Space - just pick yaw or roll and potentially give the player the option to change it. Or add them together. Up to you. It's not doing anything, so this is the default.
+- 1 = World Space - use the gravity calculation to figure out which way is "up", and use that to calculate new axes of rotation for horizontal and vertical movement. Adapts to player preferences, but acquires some error from depending so strongly on the gravity calculation.
+- 2 = Player Space - pretty much as adaptive as World Space, but uses gravity more loosely, so it doesn't acquire any error from errors in the gravity calculation. A great default for standard controllers (where the screen isn't attached to the controller). But it's not the default here.
+
+JslSetGyroSpace lets you choose one of those spaces, and the transformation will automatically be applied when you request gyro (JslGetGyro* functions), get the IMU_STATE, or receive the IMU_STATE in a callback.
 
 **float JslGetAccelX/JslGetAccelY/JslGetAccelZ(int deviceId)** - Get the latest acceleration for a given axis. If you want more than just a accelerometer axis, it's more efficient to use JslGetIMUState.
 
@@ -101,6 +117,8 @@ All these functions *should* be thread-safe, and none of them should cause any h
 
 **float JslGetPollRate(int deviceId)** - Different devices report back new information at different rates. For the given device, this gives how many times one would usually expect the device to report back per second.
 
+**float JslGetTimeSinceLastUpdate(int deviceId)** - Getting the time since the last update was received (in seconds) can be helpful for communicating a poor connection to the user (which can help communicate to wireless players that they need to move closer to the console or in some other way improve the connection, as [Fly Together](https://youtu.be/BjksCGFknKo?t=782) communicates so well in this example).
+
 **void JslResetContinuousCalibration(int deviceId)** - JoyShockLibrary has helpful functions for calibrating the gyroscope by averaging out its input over time. This deletes all calibration data that's been accumulated, if any, this session.
 
 **void JslStartContinuousCalibration(int deviceId)** - Start collecting gyro data, recording the ongoing average and using that to offset gyro output.
@@ -113,9 +131,17 @@ All these functions *should* be thread-safe, and none of them should cause any h
 
 **void JslSetCalibrationOffset(int deviceId, float xOffset, float yOffset, float zOffset)** - Manually set the calibrated offset value for the given device's gyro.
 
+**JSL_AUTO_CALIBRATION JslGetAutoCalibrationStatus(int deviceId)** - Get whether auto calibration is enabled, whether we think the controller is currently being held still, and how confident we are in its auto calibration. If you want to prompt the user to manually calibrate their controller, you can use auto calibration, and read these values to show to the user whether the controller is at rest as well as progress for calibration. Then, you can either leave auto calibration enabled (when confidence is high, auto calibration becomes difficult to trigger accidentally), or just disable auto calibration to prevent further changes without the user triggering it manually again.
+
 **void JslSetCallback(void(\*callback)(int, JOY\_SHOCK\_STATE, JOY\_SHOCK\_STATE, IMU\_STATE, IMU\_STATE, float))** - Set a callback function by which JoyShockLibrary can report the current state for each device. This callback will be given the *deviceId* for the reporting device, its current button + trigger + stick state, its previous button + trigger + stick state, its current accelerometer + gyro state, its previous accelerometer + gyro state, and the amount of time since the last report for this device (in seconds).
 
 **void JslSetTouchCallback(void(\*callback)(int, TOUCH\_STATE, TOUCH\_STATE, float))** - Set a callback function by which JoyShockLibrary can report the current touchpad state for each device. Only DualShock 4s will use this. This callback will be given the *deviceId* for the reporting device, its current and previous touchpad states, and the amount of time since the last report for this device (in seconds).
+
+**void JslSetConnectCallback(void(\*callback)(int))** - Set a callback function when a new device has been connected. This is *not* watching for new connections. You still need to explicitly call JslConnectDevices. From there, this callback will be called for each *new* device that is connected, giving you the opportunity to set default settings on those devices. It gives the unique deviceId for the newly connected device. This deviceId may be re-used if the device is connecting through the same port as a previous device.
+
+**void JslSetDisconnectCallback(void(\*callback)(int, bool))** - Set a callback function when a device has been disconnected. When this is called, the given deviceId is no longer useful to you -- all JslGet* functions will give empty/neutral results as there's no device at that id to read from. The bool your callback receives is whether or not this disconnect was due to a timeout. Otherwise, it's an explicit disconnection (device physically disconnected).
+
+**JSL_SETTINGS JslGetControllerInfoAndSettings(int deviceId)** - Read a bunch of info from the controller in one go instead of requesting each thing one at a time. Gyro space, colour (for LED on PlayStation controllers, for the controller itself for Switch controllers), whether it's calibrating, etc. See JoyShockLibrary.h for more info.
 
 **int JslGetControllerType(int deviceId)** - What type of controller is this device?
   1. Left Joy-Con
@@ -159,6 +185,10 @@ JoyShockLibrary v2 changes the gyro and accelerometer axes from previous version
 * Invert Gyro X
 * Swap Accel Z and Y
 * Then invert Accel Z
+
+JoyShockLibrary v3 makes some small changes to the behaviour of some functions:
+* **JslConnectDevices** no longer calls **JslDisconnectAndDisposeAll** before looking for connections. Instead of reconnecting all devices, it'll only make new connections, without disrupting current connections. If you were counting on the old behaviour, call JslDisconnectAndDisposeAll before calling JslConnectDevices.
+* Using a newer version of GamepadMotionHelpers, if you enable auto calibration, it will be applied more quickly at first, and then less quickly when it has more confidence in the current calibration. You can reset these at any time.
 
 ## Credits
 I'm Jibb Smart, and I made JoyShockLibrary. JoyShockLibrary has also benefited from the contributions of:

@@ -4,6 +4,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 project ("JoyShockLibrary" CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+
 include (cmake/LinuxConfig.cmake)
 include (cmake/WindowsConfig.cmake)
 include (cmake/MacConfig.cmake)
