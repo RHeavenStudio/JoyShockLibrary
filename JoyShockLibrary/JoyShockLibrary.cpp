@@ -1016,14 +1016,20 @@ JSL_SETTINGS JslGetControllerInfoAndSettings(int deviceId)
 		default:
 		case ControllerType::n_switch:
 			settings.controllerType = jc->left_right;
-			settings.colour = jc->body_colour;
+			settings.bodyColour = jc->body_colour;
+			settings.buttonColour = jc->button_colour;
+			settings.lGripColour = jc->left_grip_colour;
+			settings.rGripColour = jc->right_grip_colour;
 			break;
 		}
 
 		if (jc->controller_type != ControllerType::n_switch)
 		{
 			// get led colour
-			settings.colour = (int)(jc->led_b) | ((int)(jc->led_g) << 8) | ((int)(jc->led_r) << 16);
+			settings.bodyColour = (int)(jc->led_b) | ((int)(jc->led_g) << 8) | ((int)(jc->led_r) << 16);
+			settings.buttonColour = 0xFFFFFF;
+			settings.lGripColour = 0xFFFFFF;
+			settings.rGripColour = 0xFFFFFF;
 		}
 
 		return settings;

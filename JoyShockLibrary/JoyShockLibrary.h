@@ -127,7 +127,10 @@ typedef struct JSL_AUTO_CALIBRATION {
 
 typedef struct JSL_SETTINGS {
 	int gyroSpace = 0;
-	int colour = 0;
+	int bodyColour = 0;
+	int lGripColour = 0;
+	int rGripColour = 0;
+	int buttonColour = 0;
 	int playerNumber = 0;
 	int controllerType = 0;
 	int splitType = 0;
