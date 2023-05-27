@@ -2,6 +2,7 @@
 //
 
 #include "JoyShockLibrary.h"
+#include <vector>
 #include <bitset>
 #include "hidapi.h"
 #include <chrono>
