@@ -14,6 +14,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      - name: Install dependencies (Linux)
+        run: sudo apt install libhidapi-dev
+
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: |
