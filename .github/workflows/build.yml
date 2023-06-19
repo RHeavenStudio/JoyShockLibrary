@@ -1,0 +1,33 @@
+name: Build JSL
+
+on: ["push", "pull_request"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # should this use macos-latest?
+        os: [ubuntu-latest, macos-11, windows-latest]
+    runs-on: ${{matrix.os}}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -B build -DBUILD_SHARED_LIBS=TRUE
+          cmake --build build
+
+      #TODO: should i add intel mac support somewhere else?
+      - name: Build (macOS/Linux)
+        if: runner.os == 'macOS' || runner.os == 'Linux'
+        run: |
+          cmake -B build -DBUILD_SHARED_LIBS=TRUE
+          cmake --build build
+      
+      - uses: actions/upload-artifact@v3
+        with:
+          name: JSL-${{ runner.os }}
+          path: build/JoyShockLibrary/*JoyShockLibrary.*
