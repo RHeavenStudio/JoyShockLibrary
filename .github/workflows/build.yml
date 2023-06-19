@@ -22,7 +22,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           cmake -B build -DBUILD_SHARED_LIBS=TRUE
-          cmake --build build
+          cmake --build build --config Release
 
       - name: Build (macOS/Linux)
         if: runner.os == 'macOS' || runner.os == 'Linux'
@@ -30,7 +30,23 @@ jobs:
           cmake -B build -DBUILD_SHARED_LIBS=TRUE
           cmake --build build
       
-      - uses: actions/upload-artifact@v3
+      - name: Upload artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v3
         with:
           name: JSL-${{ runner.os }}
-          path: build/*
+          path: build/JoyShockLibrary/Release/JoyShockLibrary.dll
+
+      - name: Upload artifact (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v3
+        with:
+          name: JSL-${{ runner.os }}
+          path: build/JoyShockLibrary/Release/libJoyShockLibrary.dylib
+
+      - name: Upload artifact (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v3
+        with:
+          name: JSL-${{ runner.os }}
+          path: build/JoyShockLibrary/libJoyShockLibrary.so
