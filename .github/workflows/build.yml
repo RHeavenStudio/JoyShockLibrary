@@ -15,6 +15,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
         run: sudo apt install libhidapi-dev
 
       - name: Build (Windows)
@@ -23,7 +24,6 @@ jobs:
           cmake -B build -DBUILD_SHARED_LIBS=TRUE
           cmake --build build
 
-      #TODO: should i add intel mac support somewhere else?
       - name: Build (macOS/Linux)
         if: runner.os == 'macOS' || runner.os == 'Linux'
         run: |
@@ -33,4 +33,4 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: JSL-${{ runner.os }}
-          path: build/JoyShockLibrary/*JoyShockLibrary.*
+          path: build/*
