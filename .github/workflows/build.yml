@@ -42,7 +42,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: JSL-${{ runner.os }}
-          path: build/JoyShockLibrary/Release/libJoyShockLibrary.dylib
+          path: build/JoyShockLibrary/libJoyShockLibrary.dylib
 
       - name: Upload artifact (Linux)
         if: runner.os == 'Linux'
