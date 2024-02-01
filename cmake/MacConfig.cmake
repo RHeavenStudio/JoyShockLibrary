@@ -13,8 +13,8 @@ if (APPLE)
     CPMAddPackage (
         NAME hidapi
         GITHUB_REPOSITORY libusb/hidapi
-        VERSION 0.13.1
-        GIT_TAG 4ebce6b5059b086d05ca7e091ce04a5fd08ac3ac
+        VERSION 0.14.0
+        GIT_TAG d3013f0af3f4029d82872c1a9487ea461a56dee4
         DOWNLOAD_ONLY YES
     )
 
