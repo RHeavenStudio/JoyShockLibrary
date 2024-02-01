@@ -16,7 +16,7 @@ jobs:
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt install libhidapi-dev
+        run: sudo apt install libhidapi-dev libudev-dev
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
