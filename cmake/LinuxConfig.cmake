@@ -32,6 +32,7 @@ if (UNIX AND NOT APPLE)
 
         target_link_libraries (
             hidapi PUBLIC
+            udev
         )
     endif()
 
